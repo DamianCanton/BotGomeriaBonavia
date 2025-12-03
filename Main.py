@@ -121,7 +121,7 @@ def index():
     """
 
 # --- 5. EL ARRANQUE ---
-if _name_ == '_main_':
+if __name__ == '__main__':
     # Prendemos el Bot en un hilo paralelo (Background)
     bot_thread = threading.Thread(target=run_bot)
     bot_thread.start()
