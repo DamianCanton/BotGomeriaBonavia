@@ -120,21 +120,22 @@ def index():
     </html>
     """
 
-# --- 5. EL ARRANQUE INVERTIDO (Solución al error de Asyncio) ---
+## --- 5. EL ARRANQUE CORREGIDO (Invertido) ---
 def run_flask():
-    # Esta función corre el servidor web en segundo plano
-    app.run(host='0.0.0.0', port=PORT)
+    # El servidor web (el disfraz) corre en segundo plano sin molestar
+    # Usamos use_reloader=False para evitar duplicar hilos
+    app.run(host='0.0.0.0', port=PORT, use_reloader=False)
 
-if __name__ == '__main__ ':
-    # 1. Prendemos el servidor Web en un hilo paralelo (Background)
-    #    Lo ponemos como 'daemon' para que se apague si el bot se apaga.
+if __name__ == '__main__':
+    # 1. Prendemos la Web en un hilo paralelo (Background)
+    #    Daemon=True significa que si el bot se apaga, la web también muere.
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.daemon = True
     flask_thread.start()
     
-    print("🚀 Servidor Web iniciado en background...")
+    print("🚀 Servidor Web (Disfraz) iniciado en background...")
     
     # 2. Prendemos el Bot en el Hilo Principal (Main Thread)
-    #    Esto satisface a Asyncio y evita el RuntimeError.
+    #    ESTO SOLUCIONA TU ERROR DE RUNTIME
     print("🤖 Iniciando Bot de Telegram en Main Thread...")
     run_bot()
