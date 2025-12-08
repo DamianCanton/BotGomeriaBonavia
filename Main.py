@@ -200,7 +200,7 @@ def run_flask():
     app.run(host='0.0.0.0', port=PORT, use_reloader=False)
 
 # --- 5. ARRANQUE DEL SISTEMA ---
-if _name_ == '_main_':
+if __name__ == '__main__':
     # 1. Web en hilo secundario (Daemon)
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.daemon = True
