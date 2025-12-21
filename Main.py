@@ -38,6 +38,11 @@ logging.basicConfig(
 
 # --- 2. LÓGICA DE NEGOCIO (EL CEREBRO) ---
 
+def formatear_precio(valor):
+    """ Formatea números a moneda ($ 1.234) """
+    if valor is None: return "$ --"
+    return f"${valor:,.0f}".replace(",", ".")
+
 def cotizar_producto_individual(url):
     """ Entra a un link y saca la data precisa """
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -65,12 +70,23 @@ def cotizar_producto_individual(url):
             costo = precio_raw * (1 - desc)
             venta = costo * MARGEN_GANANCIA
             
+            # --- Detección de Stock ---
+            stock = -1 # Por defecto: No sabemos
+            if any(kw in texto.lower() for kw in ["agotado", "sin stock", "no hay stock", "sin unidades"]):
+                stock = 0
+            else:
+                # Intenta buscar "X unidades disponibles"
+                stock_match = re.search(r'(\d+)\s+unidades?\s+disponible', texto, re.IGNORECASE)
+                if stock_match:
+                    stock = int(stock_match.group(1))
+
             return {
                 "titulo": titulo,
                 "precio_web": precio_raw,
                 "costo": costo,
                 "venta": venta,
-                "vip": es_vip
+                "vip": es_vip,
+                "stock": stock
             }
         return None
     except Exception as e:
@@ -113,31 +129,55 @@ def buscar_multiples_opciones(medida):
         if not productos: 
             return None, "❌ No encontré precios. Probá otra medida."
             
-        # Ordenamos: más barato primero
+        # Ordernamos: más barato primero
         productos.sort(key=lambda x: x['venta'])
-        
+
         # --- GENERACIÓN DE MENSAJES ---
-        
-        # 1. Reporte Interno (Para tu Papá)
+
+        # 1. Reporte Interno (DATA PURA PARA TU VIEJO)
         msg_interno = f"🕵️‍♂️ REPORTE PRIVADO: {medida}\n"
-        msg_interno += f"(Costo Real vs Ganancia Neta)\n\n"
+        msg_interno += f"(Stock Real | Costo vs Ganancia)\n\n"
         
         for i, p in enumerate(productos, 1):
             icon = "⭐" if p['vip'] else "🔹"
             ganancia = p['venta'] - p['costo']
-            msg_interno += (f"{i}. {icon} {p['titulo']}\n"
-                            f"   📉 Costo: ${p['costo']:,.0f} | 💰 Gana: ${ganancia:,.0f}\n"
-                            f"   🏷️ Venta: ${p['venta']:,.0f}\n\n")
             
-        # 2. Cotización Cliente (Para reenviar)
+            # --- Lógica de Visualización de Stock (SOLO INTERNO) ---
+            txt_stock = ""
+            if p['stock'] == 0:
+                txt_stock = "⛔ AGOTADO (Oculto al cliente)"
+            elif p['stock'] == -1:
+                txt_stock = "❓ Stock sin dato (Revisar web)"
+            elif p['stock'] < 4:
+                txt_stock = f"⚠️ CRÍTICO: Quedan {p['stock']}"
+            else:
+                txt_stock = f"✅ Stock: {p['stock']}"
+
+            msg_interno += (f"{i}. {icon} {p['titulo']}\n"
+                            f"   {txt_stock}\n"  # <--- INFORMACIÓN PRIVADA
+                            f"   📉 Costo: {formatear_precio(p['costo'])} | 💰 Gana: {formatear_precio(ganancia)}\n"
+                            f"   🏷️ Venta: {formatear_precio(p['venta'])}\n\n")
+            
+        # 2. Cotización Cliente (VIDRIERA LIMPIA)
         msg_cliente = f"👋 Hola! Te paso las opciones para {medida}:\n\n"
-        
+        opciones_validas = 0
+
         for p in productos:
+            # FILTRO: Si está agotado, no se lo mostramos al cliente para no quedar mal
+            if p['stock'] == 0:
+                continue 
+
             msg_cliente += f"🔘 {p['titulo']}\n"
-            msg_cliente += f"   💲 Precio Final: ${p['venta']:,.0f}\n\n"
+            # ACÁ NO PONEMOS STOCK, solo precio
+            msg_cliente += f"   💲 Precio Final: {formatear_precio(p['venta'])}\n\n"
+            
+            opciones_validas += 1
             
         msg_cliente += "✅ Precios contado/transferencia.\n"
-        msg_cliente += "📍 Avisame cual te reservo."
+
+        # Si todo estaba sin stock...
+        if opciones_validas == 0:
+            msg_cliente = "� Hola! Por el momento no tengo stock disponible en esa medida."
 
         return msg_interno, msg_cliente
 
